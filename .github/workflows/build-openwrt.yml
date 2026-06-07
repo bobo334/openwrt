@@ -74,7 +74,12 @@ jobs:
         run: |
           cd openwrt-src
           bash "$GITHUB_WORKSPACE/scripts/diy-part2.sh"
-          make defconfig
+
+      - name: Verify firmware config before build
+        run: |
+          cd openwrt-src
+          echo "=== Key packages in .config ==="
+          grep -E '^CONFIG_PACKAGE_(odhcp6c|odhcpd-ipv6only|luci-proto-ipv6|ppp|kmod-nft-offload|luci-theme-edge2)=' .config || true
 
       - name: Download package sources
         run: |
@@ -124,10 +129,29 @@ jobs:
 
       - name: Upload build summary
         run: |
+          cd openwrt-src
+          if grep -q '^CONFIG_PACKAGE_odhcp6c=y' .config; then
+            IPV6_STATUS='enabled (odhcp6c, odhcpd-ipv6only, luci-proto-ipv6)'
+          else
+            IPV6_STATUS='disabled'
+          fi
+          if grep -q '^CONFIG_PACKAGE_ppp=y' .config; then
+            PPP_STATUS='enabled'
+          else
+            PPP_STATUS='disabled (opkg install ppp ppp-mod-pppoe)'
+          fi
+          if grep -q '^CONFIG_PACKAGE_kmod-nft-offload=y' .config; then
+            OFFLOAD_STATUS='enabled'
+          else
+            OFFLOAD_STATUS='disabled (opkg install kmod-nft-offload)'
+          fi
           echo "## Build OK" >> "$GITHUB_STEP_SUMMARY"
           echo "- Device: Xiaomi Mi Router 4C (${DEVICE_PROFILE})" >> "$GITHUB_STEP_SUMMARY"
           echo "- OpenWrt: ${OPENWRT_VERSION}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Firmware size: ${firmware_size_kb} KB (target ≤ ${IMAGE_TARGET_MAX_KB} KB)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Partition headroom: ${firmware_headroom_kb} KB free of ${IMAGE_HARD_MAX_KB} KB" >> "$GITHUB_STEP_SUMMARY"
           echo "- Default UI: Edge2 theme + Simplified Chinese (base i18n only)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Removed: PPPoE, IPv6, nft-offload, extra i18n — install via opkg if needed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- IPv6: ${IPV6_STATUS}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- PPPoE: ${PPP_STATUS}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Hardware offload: ${OFFLOAD_STATUS}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Extra i18n not included — install via opkg if needed" >> "$GITHUB_STEP_SUMMARY"
