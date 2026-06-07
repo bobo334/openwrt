@@ -15,7 +15,6 @@ on:
 
 env:
   OPENWRT_VERSION: ${{ github.event.inputs.openwrt_version || 'v25.12.4' }}
-  OPENWRT_FEEDS_BRANCH: openwrt-25.12
   DEVICE_PROFILE: xiaomi_mi-router-4c
   # 官方分区硬上限（OpenWrt 构建不允许超过）
   IMAGE_HARD_MAX_KB: 14976
@@ -52,10 +51,10 @@ jobs:
           cd openwrt-src
           echo "OpenWrt commit: $(git rev-parse HEAD)"
 
-      - name: Apply feeds and custom theme
+      - name: Apply custom theme feed
         run: |
           cd openwrt-src
-          cp "$GITHUB_WORKSPACE/config/feeds.conf.default" feeds.conf.default
+          # 保留 OpenWrt 源码自带的 feeds.conf.default（已锁定 commit，勿覆盖）
           bash "$GITHUB_WORKSPACE/scripts/diy-part1.sh"
 
       - name: Update and install feeds
