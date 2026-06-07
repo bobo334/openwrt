@@ -35,9 +35,10 @@ bash "$GITHUB_WORKSPACE/scripts/trim-config.sh"
 
 # 强制保留 IPv6（避免 defconfig/trim 来回覆盖）
 echo "Ensuring IPv6 packages stay enabled ..."
+source "$GITHUB_WORKSPACE/scripts/config-helper.sh"
 IPV6_PACKAGES=(odhcp6c odhcpd-ipv6only luci-proto-ipv6)
 for PACKAGE in "${IPV6_PACKAGES[@]}"; do
-  ./scripts/config/conf --enable "CONFIG_PACKAGE_${PACKAGE}"
+  setPackageEnabled "$PACKAGE"
 done
 make olddefconfig
 

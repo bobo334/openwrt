@@ -5,6 +5,8 @@ set -e
 
 echo "Running post-defconfig package trim ..."
 
+source "$GITHUB_WORKSPACE/scripts/config-helper.sh"
+
 TRIM_PACKAGES=(
   ppp
   ppp-mod-pppoe
@@ -25,12 +27,12 @@ TRIM_PACKAGES=(
 )
 
 for PACKAGE in "${TRIM_PACKAGES[@]}"; do
-  ./scripts/config/conf --disable "CONFIG_PACKAGE_${PACKAGE}" 2>/dev/null || true
+  setPackageDisabled "$PACKAGE"
 done
 
 # 再次确认内核不带调试信息
-./scripts/config/conf --disable CONFIG_KERNEL_DEBUG_INFO 2>/dev/null || true
-./scripts/config/conf --disable CONFIG_KERNEL_KALLSYMS 2>/dev/null || true
-./scripts/config/conf --enable CONFIG_USE_MKLIBS 2>/dev/null || true
+setConfigDisabled "CONFIG_KERNEL_DEBUG_INFO"
+setConfigDisabled "CONFIG_KERNEL_KALLSYMS"
+setConfigEnabled "CONFIG_USE_MKLIBS"
 
 echo "trim-config.sh done"
