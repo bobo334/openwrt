@@ -9,7 +9,6 @@ TRIM_PACKAGES=(
   ppp
   ppp-mod-pppoe
   luci-proto-ppp
-  luci-proto-ipv6
   luci-lib-ipkg
   luci-i18n-firewall-zh-cn
   luci-i18n-opkg-zh-cn
@@ -23,8 +22,6 @@ TRIM_PACKAGES=(
   iperf3
   nmap
   wget
-  odhcp6c
-  odhcpd-ipv6only
 )
 
 for PACKAGE in "${TRIM_PACKAGES[@]}"; do
