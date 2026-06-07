@@ -19,15 +19,18 @@ mkdir -p files/etc/uci-defaults
 cp "$GITHUB_WORKSPACE/files/etc/uci-defaults/99-defaults-luci" files/etc/uci-defaults/99-defaults-luci
 chmod +x files/etc/uci-defaults/99-defaults-luci
 
-# 确保 edge2 主题与中文语言包被选中
+# 确保 edge2 主题与基础中文语言包被选中（不装额外 i18n 分包）
 echo "CONFIG_PACKAGE_luci-theme-edge2=y" >> .config
 echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y" >> .config
-echo "CONFIG_PACKAGE_luci-i18n-opkg-zh-cn=y" >> .config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
 
 # 去掉体积较大的默认主题（若已被选中）
 sed -i '/CONFIG_PACKAGE_luci-theme-bootstrap=y/d' .config || true
 sed -i '/CONFIG_PACKAGE_luci-theme-openwrt-2020=y/d' .config || true
+
+# defconfig 后再瘦身一轮
+bash "$GITHUB_WORKSPACE/scripts/trim-config.sh"
+make defconfig
+bash "$GITHUB_WORKSPACE/scripts/trim-config.sh"
 
 echo "diy-part2.sh done"

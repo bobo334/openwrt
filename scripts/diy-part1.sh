@@ -3,7 +3,7 @@
 
 set -e
 
-echo "Cloning luci-theme-edge2 with mirror fallback ..."
+echo "Cloning luci-theme-edge2 from GitHub ..."
 rm -rf package/custom/luci-theme-edge2
 mkdir -p package/custom
 

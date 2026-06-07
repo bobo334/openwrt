@@ -1,5 +1,5 @@
 #!/bin/bash
-# 通过 GitHub 镜像克隆仓库，镜像失败时自动回退到直连 GitHub
+# 从 GitHub 直连克隆仓库（Actions runner 无需镜像）
 
 set -e
 
@@ -12,22 +12,8 @@ fi
 BRANCH="$1"
 DEST="$2"
 REPO_PATH="$3"
+URL="https://github.com/${REPO_PATH}"
 
-MIRRORS=(
-  "${GITHUB_MIRROR:-https://ghproxy.net/}https://github.com/${REPO_PATH}"
-  "https://ghfast.top/https://github.com/${REPO_PATH}"
-  "https://mirror.ghproxy.com/https://github.com/${REPO_PATH}"
-  "https://github.com/${REPO_PATH}"
-)
-
-for URL in "${MIRRORS[@]}"; do
-  echo "Trying clone: ${URL} (branch/tag: ${BRANCH})"
-  if git clone --depth=1 --branch "${BRANCH}" "${URL}" "${DEST}"; then
-    echo "Clone OK: ${URL}"
-    exit 0
-  fi
-  rm -rf "${DEST}"
-done
-
-echo "ERROR: all mirror attempts failed for ${REPO_PATH}"
-exit 1
+echo "Cloning ${URL} (branch/tag: ${BRANCH}) ..."
+git clone --depth=1 --branch "${BRANCH}" "${URL}" "${DEST}"
+echo "Clone OK: ${URL}"

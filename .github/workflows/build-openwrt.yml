@@ -17,9 +17,10 @@ env:
   OPENWRT_VERSION: ${{ github.event.inputs.openwrt_version || 'v25.12.4' }}
   OPENWRT_FEEDS_BRANCH: openwrt-25.12
   DEVICE_PROFILE: xiaomi_mi-router-4c
-  IMAGE_SIZE_LIMIT_KB: 14976
-  # GitHub 镜像前缀，可按需改为 ghfast.top / mirror.ghproxy.com 等
-  GITHUB_MIRROR: https://ghproxy.net/
+  # 官方分区硬上限（OpenWrt 构建不允许超过）
+  IMAGE_HARD_MAX_KB: 14976
+  # 目标上限：故意留 ~2 MB 给 overlay / opkg，不要占满分区
+  IMAGE_TARGET_MAX_KB: 12800
 
 jobs:
   build:
@@ -43,7 +44,7 @@ jobs:
             rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl \
             unzip vim wget xmlto xxd zlib1g-dev
 
-      - name: Clone OpenWrt via GitHub mirror
+      - name: Clone OpenWrt source
         run: |
           echo "Cloning OpenWrt ${OPENWRT_VERSION} ..."
           bash "$GITHUB_WORKSPACE/scripts/git-clone-mirror.sh" \
@@ -51,7 +52,7 @@ jobs:
           cd openwrt-src
           echo "OpenWrt commit: $(git rev-parse HEAD)"
 
-      - name: Apply feeds mirror and custom feed
+      - name: Apply feeds and custom theme
         run: |
           cd openwrt-src
           cp "$GITHUB_WORKSPACE/config/feeds.conf.default" feeds.conf.default
@@ -86,7 +87,7 @@ jobs:
           cd openwrt-src
           make -j$(nproc) V=s
 
-      - name: Check firmware size fits flash partition
+      - name: Check firmware size leaves flash headroom
         run: |
           cd openwrt-src
           FIRMWARE=$(find bin/targets/ramips/mt76x8 -name "*sysupgrade.bin" | head -1)
@@ -95,14 +96,23 @@ jobs:
             exit 1
           fi
           SIZE_KB=$(du -k "$FIRMWARE" | cut -f1)
+          HEADROOM_KB=$((IMAGE_HARD_MAX_KB - SIZE_KB))
           echo "Firmware: $FIRMWARE"
-          echo "Size: ${SIZE_KB} KB (limit: ${IMAGE_SIZE_LIMIT_KB} KB)"
-          if [ "$SIZE_KB" -gt "$IMAGE_SIZE_LIMIT_KB" ]; then
-            echo "ERROR: firmware exceeds ${IMAGE_SIZE_LIMIT_KB} KB partition limit"
+          echo "Size: ${SIZE_KB} KB"
+          echo "Official partition max: ${IMAGE_HARD_MAX_KB} KB (0xEA0000)"
+          echo "Target max (leave room for opkg): ${IMAGE_TARGET_MAX_KB} KB"
+          echo "Headroom vs partition: ${HEADROOM_KB} KB"
+          if [ "$SIZE_KB" -gt "$IMAGE_HARD_MAX_KB" ]; then
+            echo "ERROR: firmware exceeds official partition limit ${IMAGE_HARD_MAX_KB} KB"
+            exit 1
+          fi
+          if [ "$SIZE_KB" -gt "$IMAGE_TARGET_MAX_KB" ]; then
+            echo "ERROR: firmware exceeds target ${IMAGE_TARGET_MAX_KB} KB — trim more packages or raise IMAGE_TARGET_MAX_KB"
             exit 1
           fi
           echo "firmware_path=$FIRMWARE" >> "$GITHUB_ENV"
           echo "firmware_size_kb=$SIZE_KB" >> "$GITHUB_ENV"
+          echo "firmware_headroom_kb=$HEADROOM_KB" >> "$GITHUB_ENV"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
@@ -118,5 +128,7 @@ jobs:
           echo "## Build OK" >> "$GITHUB_STEP_SUMMARY"
           echo "- Device: Xiaomi Mi Router 4C (${DEVICE_PROFILE})" >> "$GITHUB_STEP_SUMMARY"
           echo "- OpenWrt: ${OPENWRT_VERSION}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Firmware size: ${firmware_size_kb} KB / ${IMAGE_SIZE_LIMIT_KB} KB" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Default UI: Edge2 theme + Simplified Chinese" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Firmware size: ${firmware_size_kb} KB (target ≤ ${IMAGE_TARGET_MAX_KB} KB)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Partition headroom: ${firmware_headroom_kb} KB free of ${IMAGE_HARD_MAX_KB} KB" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Default UI: Edge2 theme + Simplified Chinese (base i18n only)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Removed: PPPoE, IPv6, nft-offload, extra i18n — install via opkg if needed" >> "$GITHUB_STEP_SUMMARY"
