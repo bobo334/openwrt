@@ -1,0 +1,7 @@
+# 本地临时目录
+temp-edge2/
+openwrt-src/
+
+# 编译产物
+*.bin
+*.img

@@ -1,0 +1,122 @@
+# 小米 4C (MT7628AN) OpenWrt 固件 GitHub Actions 编译
+# 触发：推送到 main / 手动 workflow_dispatch
+name: Build OpenWrt for Xiaomi 4C
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      openwrt_version:
+        description: 'OpenWrt 版本标签，例如 v25.12.4'
+        required: false
+        default: 'v25.12.4'
+
+env:
+  OPENWRT_VERSION: ${{ github.event.inputs.openwrt_version || 'v25.12.4' }}
+  OPENWRT_FEEDS_BRANCH: openwrt-25.12
+  DEVICE_PROFILE: xiaomi_mi-router-4c
+  IMAGE_SIZE_LIMIT_KB: 14976
+  # GitHub 镜像前缀，可按需改为 ghfast.top / mirror.ghproxy.com 等
+  GITHUB_MIRROR: https://ghproxy.net/
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison \
+            build-essential bzip2 ccache cmake cpio curl device-tree-compiler \
+            fastjar flex gawk gettext git gperf haveged help2man intltool \
+            libc6-dev libgomp1 libglib2.0-dev liblocale-gettext-perl \
+            libncurses5-dev libssl-dev libtool lrzsz mkisofs msmtp nano \
+            ninja-build patch pkgconf python3 python3-distutils python3-setuptools \
+            rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl \
+            unzip vim wget xmlto xxd zlib1g-dev
+
+      - name: Clone OpenWrt via GitHub mirror
+        run: |
+          echo "Cloning OpenWrt ${OPENWRT_VERSION} ..."
+          bash "$GITHUB_WORKSPACE/scripts/git-clone-mirror.sh" \
+            "${OPENWRT_VERSION}" openwrt-src openwrt/openwrt.git
+          cd openwrt-src
+          echo "OpenWrt commit: $(git rev-parse HEAD)"
+
+      - name: Apply feeds mirror and custom feed
+        run: |
+          cd openwrt-src
+          cp "$GITHUB_WORKSPACE/config/feeds.conf.default" feeds.conf.default
+          bash "$GITHUB_WORKSPACE/scripts/diy-part1.sh"
+
+      - name: Update and install feeds
+        run: |
+          cd openwrt-src
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          ./scripts/feeds install -p custom luci-theme-edge2
+
+      - name: Load trimmed device config
+        run: |
+          cd openwrt-src
+          cp "$GITHUB_WORKSPACE/config/xiaomi-4c.config" .config
+          make defconfig
+
+      - name: Apply theme and language defaults
+        run: |
+          cd openwrt-src
+          bash "$GITHUB_WORKSPACE/scripts/diy-part2.sh"
+          make defconfig
+
+      - name: Download package sources
+        run: |
+          cd openwrt-src
+          make download -j$(nproc)
+
+      - name: Compile firmware
+        run: |
+          cd openwrt-src
+          make -j$(nproc) V=s
+
+      - name: Check firmware size fits flash partition
+        run: |
+          cd openwrt-src
+          FIRMWARE=$(find bin/targets/ramips/mt76x8 -name "*sysupgrade.bin" | head -1)
+          if [ -z "$FIRMWARE" ]; then
+            echo "ERROR: sysupgrade.bin not found"
+            exit 1
+          fi
+          SIZE_KB=$(du -k "$FIRMWARE" | cut -f1)
+          echo "Firmware: $FIRMWARE"
+          echo "Size: ${SIZE_KB} KB (limit: ${IMAGE_SIZE_LIMIT_KB} KB)"
+          if [ "$SIZE_KB" -gt "$IMAGE_SIZE_LIMIT_KB" ]; then
+            echo "ERROR: firmware exceeds ${IMAGE_SIZE_LIMIT_KB} KB partition limit"
+            exit 1
+          fi
+          echo "firmware_path=$FIRMWARE" >> "$GITHUB_ENV"
+          echo "firmware_size_kb=$SIZE_KB" >> "$GITHUB_ENV"
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-xiaomi-4c-${{ env.OPENWRT_VERSION }}
+          path: |
+            openwrt-src/bin/targets/ramips/mt76x8/*sysupgrade.bin
+            openwrt-src/bin/targets/ramips/mt76x8/sha256sums
+          if-no-files-found: error
+
+      - name: Upload build summary
+        run: |
+          echo "## Build OK" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Device: Xiaomi Mi Router 4C (${DEVICE_PROFILE})" >> "$GITHUB_STEP_SUMMARY"
+          echo "- OpenWrt: ${OPENWRT_VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Firmware size: ${firmware_size_kb} KB / ${IMAGE_SIZE_LIMIT_KB} KB" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Default UI: Edge2 theme + Simplified Chinese" >> "$GITHUB_STEP_SUMMARY"

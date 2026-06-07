@@ -1,0 +1,8 @@
+#!/bin/sh
+# 首次启动时设置 LuCI 默认语言为简体中文、默认主题为 edge2
+
+uci set luci.main.lang='zh_cn'
+uci set luci.main.mediaurlbase='/luci-static/edge2'
+uci commit luci
+
+exit 0

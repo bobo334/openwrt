@@ -1,0 +1,7 @@
+# OpenWrt 官方 feed，经 GitHub 镜像加速
+src-git packages https://ghproxy.net/https://github.com/openwrt/packages.git^openwrt-25.12
+src-git luci https://ghproxy.net/https://github.com/openwrt/luci.git^openwrt-25.12
+src-git routing https://ghproxy.net/https://github.com/openwrt/routing.git^openwrt-25.12
+src-git telephony https://ghproxy.net/https://github.com/openwrt/telephony.git^openwrt-25.12
+
+# luci-theme-edge2 通过 diy-part1.sh 以 src-link custom 方式注入
